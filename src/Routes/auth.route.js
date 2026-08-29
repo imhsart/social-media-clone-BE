@@ -3,21 +3,27 @@ const { OTP } = require("../Models/otp.models")
 const validator = require("validator")
 const { Resend } = require("resend")
 const { VerifiedMail } = require("../Models/verifiedMails.models")
+const { User } = require("../Models/user.models")
 const router = express.Router()
 const resend = new Resend(process.env.RESEND_API_KEY)
+const AppError = require("../Utils/AppError")
+const bcrypt = require("bcrypt")
+const jwt = require("jsonwebtoken")
+
 
 
 //send otp api
-router.post("/send-otp" , async (req, res) => {
-  const { email } = req.body
-  if(!email){
-    return res.status(400).json({success: false, error: "Email is required!"})
-  }
-  if(!validator.isEmail(email)){
-    return res.status(400).json({success: false, error: "Please enter a valid email!"})
-  }
-  const genOtp = Math.floor(100000 + Math.random() * 900000)
+router.post("/send-otp" , async (req, res, next) => {
   try{
+    const { email } = req.body
+    if(!email){
+      throw new AppError("Email is required!", 400)
+    }
+    if(!validator.isEmail(email)){
+      throw new AppError("Please enter a valid email!", 400)
+    }
+    const genOtp = Math.floor(100000 + Math.random() * 900000)
+
     const {data, error} = await resend.emails.send({
       from: "onboarding@resend.dev",
       to: email,
@@ -33,52 +39,43 @@ router.post("/send-otp" , async (req, res) => {
       </div>`
     })
     if(error){
-      return res.status(400).json({success: false, error: error.message})
+      throw new AppError(error.message, 400)
     }
     
-    await OTP.findOneAndUpdate({
-      email
-    }, {
-      otp: genOtp,
-      expiredAt: new Date()
-    },{runValidators: true, upsert: true, returnDocument: "after"})
-
+    await OTP.findOneAndUpdate(
+      {email},
+      {otp: genOtp,expiredAt: new Date()},
+      {runValidators: true, upsert: true, returnDocument: "after"}
+    )
     res.status(201).json({success: true})
   }
   catch(error){
-    if(error.code === 11000){
-      return res.status(409).json({success: false, error: "OTP already sent. Please wait before requesting again."})
-    }
-    if(error.name === "ValidationError"){
-      return res.status(400).json({success: false, error: error.message})
-    }
-    res.status(500).json({
-      success: false, 
-      error: "Something went wrong. Please try again."
-    })
+    next(error)
   }
 })
 
 
 //verify otp api
-router.post("/verify-otp", async (req, res) => {
-  const { email, otp } = req.body
-  if(!email){
-    return res.status(400).json({success: false, error: "Please enter a valid email."})
-  }
-  if(!otp){
-    return res.status(400).json({success: false, error: "Please enter the OTP!"})
-  }
+router.post("/verify-otp", async (req, res, next) => {
   try{
+    const { email, otp } = req.body
+    if(!email){
+      throw new AppError("Please enter a valid email.", 400)
+    }
+    if(!otp){
+      throw new AppError("Please enter the OTP!", 400)
+    }
     const foundOtp = await OTP.findOne({email, otp})
     if(!foundOtp){
-      throw new Error("Invalid OTP! Please try again.")
+      throw new AppError("Invalid OTP! Please try again.", 400)
     }
     await OTP.deleteOne({ _id: foundOtp._id})
 
-    await VerifiedMail.findOneAndUpdate({email},{
-      email
-    }, {upsert: true, returnDocument: "after"})
+    await VerifiedMail.findOneAndUpdate(
+      {email},
+      {email},
+      {upsert: true, returnDocument: "after"}
+    )
     
     res.status(201).json({
       success: true,
@@ -86,12 +83,57 @@ router.post("/verify-otp", async (req, res) => {
     })
   }
   catch(error){
-    res.status(500).json({
-      success: false, 
-      error: "Something went wrong. Please try again."
-    })
+    next(error)
   }
 })
+
+
+//signup api
+router.post("/signup", async (req, res, next) => {
+  try{
+    const { email, username, password } = req.body
+    if(!email || !username || !password) {
+      throw new AppError("Please fill in all the fields.", 400)
+    }
+    if(!validator.isEmail(email)){
+      throw new AppError("Please enter a valid email.", 400)
+    }
+    if(username.length < 4 || username.length > 15){
+      throw new AppError("Username must be 4 to 15 characters long.", 400)
+    }
+    if(!validator.isStrongPassword(password)){
+      throw new AppError("Please enter a strong password.", 400)
+    }
+    const verifiedUser = await VerifiedMail.findOne({email})
+    if(!verifiedUser){
+      throw new AppError("Please verify your mail.", 400)
+    }
+    const existingUser = await User.findOne({email})
+    if(existingUser){
+      throw new AppError("User already exists. Please use another email.", 400)
+    }
+    
+    const saltRounds = 10
+    const hashedPass = await bcrypt.hash(password, saltRounds)
+    await User.create({
+      email,
+      username,
+      password: hashedPass
+    })
+    //after creating the user, delete the entry from verifiedMail, to avoid 
+    // unverified signups if the user ever deletes the account
+    // await VerifiedMail.deleteOne({email})
+
+    res.status(201).json({
+      success: true,
+      message: "User created successfully! Please Log in."
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
 
 
 module.exports ={

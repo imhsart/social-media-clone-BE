@@ -7,7 +7,7 @@ const otpSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: true,
+    required: [true, "Email is required."],
     trim: true,
     unique: true
   },

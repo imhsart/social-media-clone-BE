@@ -135,6 +135,41 @@ router.post("/signup", async (req, res, next) => {
 })
 
 
+router.post("/login", async (req, res, next) => {
+  try{
+    const { email, username, password } = req.body
+
+    if(!password || !(email || username)){
+      throw new AppError("Please provide an email or username, and a password.", 400)
+    }
+    const foundUser = await User.findOne({
+      $or : [
+        {email},
+        {username}
+      ]
+    })
+    if(!foundUser){
+      throw new AppError("Invalid credentials.", 401)
+    }
+    const isPassMatched = await bcrypt.compare(password, foundUser.password)
+    if(!isPassMatched){
+      throw new AppError("Invalid credentials.", 401)
+    }
+    const genToken = jwt.sign({id: foundUser._id}, process.env.JWT_SECRET, {expiresIn: "3h"})
+    res.cookie("lg_token", genToken, {
+      secure: true,
+      maxAge: 3 * 60 * 60 * 1000,
+      httpOnly: true,
+      sameSite: "none"      
+    }).status(200).json({
+      success: true,
+      message: "Logged In successfully!"
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
 
 module.exports ={
   authRouter: router

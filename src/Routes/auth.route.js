@@ -134,7 +134,7 @@ router.post("/signup", async (req, res, next) => {
   }
 })
 
-
+//login api
 router.post("/login", async (req, res, next) => {
   try{
     const { email, username, password } = req.body
@@ -170,6 +170,24 @@ router.post("/login", async (req, res, next) => {
     next(error)
   }
 })
+
+//logout api
+router.post("/logout", async (req, res, next) => {
+  try{
+    res.clearCookie("lg_token", {
+      secure: true,
+      httpOnly: true,
+      sameSite: "none"
+    }).status(200).json({
+      success: true,
+      message: "Logged out successfully!"
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
 
 module.exports ={
   authRouter: router

@@ -2,12 +2,16 @@ require("dotenv").config()
 const express = require("express")
 const mongoose = require("mongoose")
 const { authRouter } = require("./Routes/auth.route")
-const errorHandler = require("./Middlewares/errorHandler")
+const { profileRouter } = require("./Routes/profile.route")
+const errorHandler = require("./Middlewares/error.middleware")
+const cp = require("cookie-parser")
 
 const app = express()
 const PORT = process.env.PORT || 8080
 app.use(express.json())
+app.use(cp())
 app.use("/api/auth", authRouter)
+app.use("/api/profile", profileRouter)
 
 
 

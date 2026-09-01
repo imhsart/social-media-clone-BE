@@ -6,7 +6,8 @@ const userSchema = new mongoose.Schema({
     required: [true, "Email is required."],
     trim: true,
     unique: true,
-    lowercase: true
+    lowercase: true,
+    immutable: true
   },
   password: {
     type: String,
@@ -20,7 +21,8 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     required: [true, "Username is required."],
     minLength: [4, "Username must be at least 4 characters long."],
-    maxLength: [15, "Username must be at most 15 characters long."]
+    maxLength: [15, "Username must be at most 15 characters long."],
+    immutable: true
   },
   firstName: {
     type: String,
@@ -31,11 +33,16 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   DOB: {
-    type: Date
+    type: Date,
+    immutable: true
   },
   gender: {
     type: String,
-    // enum: ["male", "female", "other"]
+    enum: {
+      values: ["male", "female", "other"],
+      message: "{VALUE} is not a valid gender"
+    },
+    immutable: true
   },
   followers: [
     // {

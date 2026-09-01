@@ -26,6 +26,28 @@ const errorHandler = (err, req, res, next) => {
     })
   }
 
+  //jwt token error
+  if(err.name === "TokenExpiredError" || err.name === "JsonWebTokenError"){
+    return res.status(401).json({
+      success: false,
+      message: "Session expired. Please login again."
+    })
+  }
+
+  // multer error handling
+  if (err.name === "MulterError") {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "File size must be 3MB or less."
+      });
+    }
+    return res.status(400).json({ 
+      success: false, 
+      message: "File upload error." 
+    });
+  }
+
   const statusCode = err.statusCode || 500
   return res.status(statusCode).json({
     success: false,

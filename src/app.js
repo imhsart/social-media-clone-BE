@@ -1,12 +1,18 @@
 require("dotenv").config()
 const express = require("express")
+const app = express()
 const mongoose = require("mongoose")
 const { authRouter } = require("./Routes/auth.route")
 const { profileRouter } = require("./Routes/profile.route")
 const errorHandler = require("./Middlewares/error.middleware")
 const cp = require("cookie-parser")
+const cors = require("cors")
 
-const app = express()
+
+app.use(cors({
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+  origin: "http://localhost:5173"
+}))
 const PORT = process.env.PORT || 8080
 app.use(express.json())
 app.use(cp())

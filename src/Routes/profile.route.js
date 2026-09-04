@@ -81,9 +81,9 @@ router.put("/complete", isLoggedInUser, async (req, res, next) => {
 //edit profile api
 router.patch("/edit", isLoggedInUser, async (req, res, next) => {
   try{
-    const { firstName, lastName, displayPicture, bio } = req.body
+    const { firstName, lastName, bio } = req.body
     const loggedInUser = req.user
-    if(req.body?.email || req.body?.username || req.body?.password || req.body?.DOB || req.body?.gender){
+    if(req.body?.email || req.body?.username || req.body?.password || req.body?.displayPicture || req.body?.DOB || req.body?.gender){
       throw new AppError("Email, username, DOB, gender cannot be changed.", 400)
     }
     const updateData = {}
@@ -100,14 +100,6 @@ router.patch("/edit", isLoggedInUser, async (req, res, next) => {
       }
       updateData.lastName = lastName.trim()
     }
-//to remove displaypicture from this api, separate api for picture change
-    if(displayPicture !== undefined){
-      if(typeof displayPicture !== "string" || !displayPicture.trim() || !validator.isURL(displayPicture)){
-        throw new AppError("Invalid display picture.", 400)
-      }
-      updateData.displayPicture = displayPicture.trim()
-    }
-
     if(bio !== undefined){
       if(bio.length > 300){
         throw new AppError("Bio must be at most 300 characters long.", 400)

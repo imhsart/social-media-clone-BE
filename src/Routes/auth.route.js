@@ -22,6 +22,15 @@ router.post("/send-otp" , async (req, res, next) => {
     if(!validator.isEmail(email)){
       throw new AppError("Please enter a valid email!", 400)
     }
+    const checkVerified = await VerifiedMail.findOne({email})
+    //checking if the email is already a verified email or not
+    if(checkVerified){
+      return res.status(200).json({
+        success: true,
+        alreadyVerified: true,
+        message: "Email already verified. Please proceed to Sign up."
+      })
+    }
     const genOtp = Math.floor(100000 + Math.random() * 900000)
 
     const {data, error} = await resend.emails.send({
@@ -120,9 +129,11 @@ router.post("/signup", async (req, res, next) => {
       username,
       password: hashedPass
     })
-    //after creating the user, delete the entry from verifiedMail, to avoid 
-    // unverified signups if the user ever deletes the account
-    // await VerifiedMail.deleteOne({email})
+    await VerifiedMail.findOneAndUpdate(
+      {email},
+      {$unset: { expiresAt: ""}}
+    ) 
+    //removing the expiresAt from verified email if a successfull signup occurs
 
     res.status(201).json({
       success: true,

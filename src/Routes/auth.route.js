@@ -9,6 +9,7 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 const AppError = require("../Utils/AppError")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
+const isLoggedInUser = require("../Middlewares/auth.middleware")
 
 
 
@@ -22,8 +23,11 @@ router.post("/send-otp" , async (req, res, next) => {
     if(!validator.isEmail(email)){
       throw new AppError("Please enter a valid email!", 400)
     }
-    const checkVerified = await VerifiedMail.findOne({email})
-    //checking if the email is already a verified email or not
+    const checkVerified = await VerifiedMail.findOne({
+      email, 
+      expiresAt: {$exists: true}
+    })
+    //checking if the email is already a verified email and has expiresAt or not
     if(checkVerified){
       return res.status(200).json({
         success: true,
@@ -82,7 +86,7 @@ router.post("/verify-otp", async (req, res, next) => {
 
     await VerifiedMail.findOneAndUpdate(
       {email},
-      {email},
+      {email, expiresAt: new Date(Date.now() + 6 * 60 * 60 * 1000)},
       {upsert: true, returnDocument: "after"}
     )
     
@@ -192,6 +196,33 @@ router.post("/logout", async (req, res, next) => {
     }).status(200).json({
       success: true,
       message: "Logged out successfully!"
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+//get user data api
+router.get("/me", isLoggedInUser, async (req, res, next) => {
+  try{
+    return res.status(200).json({
+      success: true,
+      data: {
+        firstName: req.user.firstName,
+        lastName: req.user.lastName,
+        email: req.user.email,
+        username: req.user.username,
+        DOB: req.user.DOB,
+        gender: req.user.gender,
+        followers: req.user.followers,
+        following: req.user.following,
+        posts: req.user.posts,
+        displayPicture: req.user.displayPicture,
+        bio: req.user.bio,
+        isProfilePublic: req.user.isProfilePublic,
+        isProfileComplete: req.user.isProfileComplete
+      }
     })
   }
   catch(error){

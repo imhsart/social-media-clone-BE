@@ -9,7 +9,7 @@ const verfiedMailsSchema = new mongoose.Schema({
   expiresAt : {
     type: Date,
     expires: 0,
-    default: () => new Date(Date.now() + 24 * 60 * 60 * 1000)
+    default: () => new Date(Date.now() + 6 * 60 * 60 * 1000)
   }
 })
 

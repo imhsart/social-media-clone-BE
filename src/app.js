@@ -11,7 +11,8 @@ const cors = require("cors")
 
 app.use(cors({
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  origin: "http://localhost:5173"
+  origin: process.env.FRONTEND_URL,
+  credentials: true
 }))
 const PORT = process.env.PORT || 8080
 app.use(express.json())

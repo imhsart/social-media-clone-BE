@@ -2,7 +2,6 @@ const express = require("express")
 const router = express.Router()
 const { User } = require("../Models/user.models")
 const AppError = require("../Utils/AppError")
-const validator = require("validator")
 const isLoggedInUser = require("../Middlewares/auth.middleware")
 const upload = require("../Middlewares/multer.middleware")
 const cloudinary = require("../Utils/Cloudinary")
@@ -12,7 +11,13 @@ const streamifier = require("streamifier")
 //complete profile api
 router.put("/complete", isLoggedInUser, async (req, res, next) => {
   try{
-    const { firstName, lastName, DOB, gender, displayPicture, bio } = req.body
+    const { 
+      firstName,
+      lastName, 
+      DOB, 
+      gender, 
+      isProfilePublic,
+      bio } = req.body
     if(!firstName || !lastName || !DOB || !gender){
       throw new AppError("Please fill the fields marked as required.", 400)
     }
@@ -23,10 +28,8 @@ router.put("/complete", isLoggedInUser, async (req, res, next) => {
     if(!allowedGenders.has(gender)){
       throw new AppError("Please enter a valid gender.", 400)
     }
-    if(displayPicture){
-      if(typeof displayPicture !== "string" || !validator.isURL(displayPicture)){
-        throw new AppError("Invalid display picture", 400)
-      }
+    if(isProfilePublic !== undefined && typeof isProfilePublic !== "boolean"){
+        throw new AppError("Profile visibility must be boolean.", 400)
     }
     if(bio && bio.length > 300){
       throw new AppError("Bio must be at most 300 characters long.", 400)
@@ -39,15 +42,15 @@ router.put("/complete", isLoggedInUser, async (req, res, next) => {
     if(age < 18){
       throw new AppError("You must be at least 18 years old.", 400)
     }
-    const foundUser = await User.findByIdAndUpdate(
+    await User.findByIdAndUpdate(
       req.user._id,
       {
         firstName,
         lastName,
         DOB,
         gender,
-        displayPicture,
         bio,
+        isProfilePublic,
         isProfileComplete: true
       }, {
         returnDocument: "after",
@@ -56,20 +59,7 @@ router.put("/complete", isLoggedInUser, async (req, res, next) => {
     )
     res.status(200).json({
       success: true,
-      message: "Completed profile successfully!",
-      data: {
-        email: foundUser.email,
-        username: foundUser.username,
-        firstName: foundUser.firstName,
-        lastName: foundUser.lastName,
-        DOB: foundUser.DOB,
-        gender: foundUser.gender,
-        followers: foundUser.followers,
-        following: foundUser.following,
-        posts: foundUser.posts,
-        displayPicture: foundUser.displayPicture,
-        bio: foundUser.bio
-      }
+      message: "Completed profile successfully!"
     })
   }
   catch(error){
@@ -81,7 +71,7 @@ router.put("/complete", isLoggedInUser, async (req, res, next) => {
 //edit profile api
 router.patch("/edit", isLoggedInUser, async (req, res, next) => {
   try{
-    const { firstName, lastName, bio } = req.body
+    const { firstName, lastName, bio, isProfilePublic } = req.body
     const loggedInUser = req.user
     if(req.body?.email || req.body?.username || req.body?.password || req.body?.displayPicture || req.body?.DOB || req.body?.gender){
       throw new AppError("Email, username, DOB, gender cannot be changed.", 400)
@@ -106,30 +96,23 @@ router.patch("/edit", isLoggedInUser, async (req, res, next) => {
       }
       updateData.bio = bio.trim()
     }
+    if(isProfilePublic !== undefined){
+      if(typeof isProfilePublic !== "boolean"){
+        throw new AppError("Profile visibility must be boolean.", 400)
+      }
+      updateData.isProfilePublic = isProfilePublic.trim()
+    }
     if(Object.keys(updateData).length === 0){
       throw new AppError("No valid fields provided to update.", 400)
     }
-    const updatedUser = await User.findByIdAndUpdate(
+    await User.findByIdAndUpdate(
       loggedInUser._id,
       updateData,
       {runValidators: true, returnDocument: "after"}
     )
     res.status(200).json({
       success: true,
-      message: "Updated profile details.",
-      data: {
-        email: updatedUser.email,
-        username: updatedUser.username,
-        firstName: updatedUser.firstName,
-        lastName: updatedUser.lastName,
-        DOB: updatedUser.DOB,
-        gender: updatedUser.gender,
-        followers: updatedUser.followers,
-        following: updatedUser.following,
-        posts: updatedUser.posts,
-        displayPicture: updatedUser.displayPicture,
-        bio: updatedUser.bio
-      }
+      message: "Updated profile details."
     })
   }
   catch(error){
@@ -166,19 +149,13 @@ router.patch("/edit/profile-picture", isLoggedInUser, upload.single("file"), asy
     }
     res.status(200).json({
       success: true,
-      message: "Profile picture updated.",
-      data: {
-        displayPicture: updatedUser.displayPicture
-      }
+      message: "Profile picture updated."
     })
   }
   catch(error){
     next(error)
   }
 })
-
-
-
 
 
 

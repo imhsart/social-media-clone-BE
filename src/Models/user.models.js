@@ -71,6 +71,10 @@ const userSchema = new mongoose.Schema({
     maxLength: [300, "Bio must be at most 300 characters long."],
     default: ""
   },
+  isProfilePublic: {
+    type: Boolean,
+    default: true
+  },
   isProfileComplete: {
     type: Boolean,
     default: false

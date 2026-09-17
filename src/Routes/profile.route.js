@@ -3,7 +3,7 @@ const router = express.Router()
 const { User } = require("../Models/user.models")
 const AppError = require("../Utils/AppError")
 const isLoggedInUser = require("../Middlewares/auth.middleware")
-const upload = require("../Middlewares/multer.middleware")
+const { upload } = require("../Middlewares/multer.middleware")
 const cloudinary = require("../Utils/Cloudinary")
 const streamifier = require("streamifier")
 
@@ -100,19 +100,25 @@ router.patch("/edit", isLoggedInUser, async (req, res, next) => {
       if(typeof isProfilePublic !== "boolean"){
         throw new AppError("Profile visibility must be boolean.", 400)
       }
-      updateData.isProfilePublic = isProfilePublic.trim()
+      updateData.isProfilePublic = isProfilePublic
     }
     if(Object.keys(updateData).length === 0){
       throw new AppError("No valid fields provided to update.", 400)
     }
-    await User.findByIdAndUpdate(
+    const updatedUser = await User.findByIdAndUpdate(
       loggedInUser._id,
       updateData,
       {runValidators: true, returnDocument: "after"}
     )
     res.status(200).json({
       success: true,
-      message: "Updated profile details."
+      message: "Updated profile details.",
+      data: {
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        bio: updatedUser.bio,
+        isProfilePublic: updatedUser.isProfilePublic
+      }
     })
   }
   catch(error){
@@ -149,7 +155,8 @@ router.patch("/edit/profile-picture", isLoggedInUser, upload.single("file"), asy
     }
     res.status(200).json({
       success: true,
-      message: "Profile picture updated."
+      message: "Profile picture updated.",
+      data: updatedUser.displayPicture
     })
   }
   catch(error){

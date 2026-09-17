@@ -221,7 +221,8 @@ router.get("/me", isLoggedInUser, async (req, res, next) => {
         displayPicture: req.user.displayPicture,
         bio: req.user.bio,
         isProfilePublic: req.user.isProfilePublic,
-        isProfileComplete: req.user.isProfileComplete
+        isProfileComplete: req.user.isProfileComplete,
+        createdAt: req.user.createdAt
       }
     })
   }

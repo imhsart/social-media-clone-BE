@@ -4,6 +4,7 @@ const app = express()
 const mongoose = require("mongoose")
 const { authRouter } = require("./Routes/auth.route")
 const { profileRouter } = require("./Routes/profile.route")
+const { postRouter } = require("./Routes/post.route")
 const errorHandler = require("./Middlewares/error.middleware")
 const cp = require("cookie-parser")
 const cors = require("cors")
@@ -19,6 +20,7 @@ app.use(express.json())
 app.use(cp())
 app.use("/api/auth", authRouter)
 app.use("/api/profile", profileRouter)
+app.use("/api/post", postRouter)
 
 
 

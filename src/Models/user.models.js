@@ -45,22 +45,16 @@ const userSchema = new mongoose.Schema({
     immutable: true
   },
   followers: [
-    // {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "User"
-    // }
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "user"
+    }
   ],
   following: [
-    // {
-    // type: mongoose.Schema.Types.ObjectId,
-    // ref: "User"
-    // }
-  ],
-  posts: [
-    // {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "Post"
-    // }
+    {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "user"
+    }
   ],
   displayPicture: {
     type: String,

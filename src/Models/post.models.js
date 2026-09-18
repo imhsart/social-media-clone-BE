@@ -32,24 +32,17 @@ const postSchema = new mongoose.Schema({
     //   ref: "user"
     // }
   ],
-  comments: [
-    // {
+  comments: {
     //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "user"
-    // }
-  ],
+    //   ref: "comment"
+  },
   saves: [
     // {
     //   type: mongoose.Schema.Types.ObjectId,
     //   ref: "user"
     // }
   ],
-  hashtags: [
-    // {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "user"
-    // }
-  ],
+  hashtags: [],
   mentions: [
     // {
     //   type: mongoose.Schema.Types.ObjectId,
@@ -59,16 +52,7 @@ const postSchema = new mongoose.Schema({
   isEdited: {
     type: Boolean,
     default: false
-  },
-  visibility: {
-    type: String,
-    enum: {
-      values: ["public", "private", "followers"],
-      message: "{VALUE} is not a valid visibility method"
-    },
-    default: "public"
   }
-
 }, {timestamps: true})
 
 postSchema.path("media").validate(function (media){

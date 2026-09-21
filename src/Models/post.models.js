@@ -17,7 +17,7 @@ const postSchema = new mongoose.Schema({
   caption: {
     type: String,
     trim: true,
-    maxLength: [200, "Caption must not exceed 200 characters."]
+    maxLength: [250, "Caption must not exceed 200 characters."]
   },
   media: mediaSchema,
   authorId: {
@@ -27,10 +27,10 @@ const postSchema = new mongoose.Schema({
     immutable: true
   },
   likes: [
-    // {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "user"
-    // }
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "user"
+    }
   ],
   comments: {
     //   type: mongoose.Schema.Types.ObjectId,
@@ -42,12 +42,16 @@ const postSchema = new mongoose.Schema({
     //   ref: "user"
     // }
   ],
-  hashtags: [],
+  hashtags: [
+    {
+      type: String
+    }
+  ],
   mentions: [
-    // {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "user"
-    // }
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "user"
+    }
   ],
   isEdited: {
     type: Boolean,

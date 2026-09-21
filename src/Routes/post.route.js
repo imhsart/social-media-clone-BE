@@ -9,14 +9,32 @@ const { User } = require("../Models/user.models")
 const streamifier = require("streamifier")
 
 
+const extractTags = (inputCaption) => {
+  const matches = inputCaption.match(/#[\w]+/g) || []
+  return [...new Set(matches.map(tag => tag.slice(1).toLowerCase()))]
+}
+
 //create post api
 router.post("/create", isLoggedInUser, postMediaUpload.single("file"), async (req, res, next) => {
   let updateObj = {}
   try{
-    const { caption } = req.body
+    const { caption} = req.body
+    //mentions will come parsed from frontend
+    let mentioned = []
+    try{
+      mentioned = req.body.mentioned ? JSON.parse(req.body.mentioned) : []
+    }
+    catch(err){
+      throw new AppError("Invalid mentions format.", 400)
+    }
+    if(!Array.isArray(mentioned)){
+      throw new AppError("Mentions must be an array.", 400)
+    }
+    //if no media or text both throw error
     if(!req.file && !caption?.trim()){
       throw new AppError("Post cannot be empty.", 400)
     }
+    //media upload to cloudinary function
     const mediaStreamUpload = () => {
       return new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
@@ -29,12 +47,30 @@ router.post("/create", isLoggedInUser, postMediaUpload.single("file"), async (re
         streamifier.createReadStream(req.file.buffer).pipe(stream)
       })
     }
-    if(caption){
-      if(caption.trim().length > 200){
+    if(caption !== undefined && caption.trim().length > 250){
         throw new AppError("Caption must not exceed 200 characters.", 400)
-      }
-      updateObj.caption = caption
     }
+
+    //removing duplicates from array of IDs 
+    const uniqueMentionIds = [...new Set(mentioned)].filter(Boolean)
+
+    //validating the user ids received
+    if(uniqueMentionIds.length){
+      const validCount = await User.countDocuments({
+        _id: { $in: uniqueMentionIds }
+      });
+      if(validCount !== uniqueMentionIds.length){
+        return res.status(400).json({success: false, message: "One or more mentioned users do not exist."})
+      }
+    }
+
+    updateObj = {
+      authorId: req.user._id,
+      caption: caption || "",
+      hashtags: caption ? extractTags(caption) : [],
+      mentions: uniqueMentionIds
+    }
+    //media file submission
     if(req.file){
       const imageLimit = 10 * 1024 * 1024
       const videoLimit = 30 * 1024 * 1024
@@ -50,7 +86,6 @@ router.post("/create", isLoggedInUser, postMediaUpload.single("file"), async (re
         resourceType: result.resource_type
       }
     }
-    updateObj.authorId = req.user._id
     const newPost = await Posts.create(updateObj)
     res.status(201).json({
       success: true,
@@ -59,6 +94,7 @@ router.post("/create", isLoggedInUser, postMediaUpload.single("file"), async (re
     })
   }
   catch(error){
+    //cleaning orphaned cloudinary media
     if(updateObj?.media?.publicId){
       try{
         await cloudinary.uploader.destroy(updateObj.media.publicId, {
@@ -129,7 +165,7 @@ router.get("/users/:userId/get-post/:postId", isLoggedInUser, async (req, res, n
     const targetPost = await Posts.findOne({
       _id: postId,
       authorId: userId
-    })
+    }).populate("authorId", "username displayPicture")
     if(!targetPost){
       return res.status(404).json({success: false, message: "Post not found."})
     }
@@ -173,6 +209,59 @@ router.delete("/delete/:postId", isLoggedInUser, async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Deleted post successfully."
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+//edit post api
+router.patch("/edit/:postId", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { postId } = req.params
+    const { caption, mentioned = [] } = req.body
+
+    if(!Array.isArray(mentioned)) {
+      throw new AppError("Mentions must be an array.", 400)
+    }
+    if(caption !== undefined && caption.trim().length > 250){
+      throw new AppError("Caption must not exceed 200 characters.", 400)
+    }
+
+    const uniqueMentionIds = [...new Set(mentioned)].filter(Boolean)
+
+    if(uniqueMentionIds.length){
+      const validCount = await User.countDocuments({
+        _id: { $in:uniqueMentionIds }
+      });
+      if(validCount !== uniqueMentionIds){
+        return res.status(400).json({success: false, message: "One or more mentioned users do not exist."})
+      }
+    }
+    const updateObj = {}
+    if(caption !== undefined){
+      updateObj.caption = caption
+      updateObj.hashtags = caption ? extractTags(caption) : []
+    }
+    updateObj.mentions = uniqueMentionIds
+    updateObj.isEdited = true
+
+    const updatedPost = await Posts.findOneAndUpdate(
+      { _id: postId, authorId: req.user._id },
+      { $set: updateObj },
+      { returnDocument: "after", runValidators: true }
+    )
+
+    if(!updatedPost){
+      throw new AppError("Post not found or you're not authorized to edit it.", 404)
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Post edited successfully.",
+      data: updatedPost
     })
   }
   catch(error){

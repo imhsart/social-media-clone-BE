@@ -232,6 +232,46 @@ router.get("/me", isLoggedInUser, async (req, res, next) => {
 })
 
 
+//search users with username api
+router.get("/search", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { q } = req.query
+    if(!q || !q.trim()){
+      return res.status(200).json({success: true, data: []})
+    }
+    const searchTerm = q
+    const avoidRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
+    const users = await User.find({
+      username: { $regex: avoidRegex(searchTerm), $options: "i" },
+      _id: { $ne: req.user._id }
+    })
+    .select("username firstName lastName displayPicture")
+    .limit(20)
+    .lean()
+
+    const followingSet = new Set(
+      (req.user.following || []).map(id => id.toString())
+    )
+
+    users.sort((a,b) => {
+      const afollow = followingSet.has(a._id.toString()) ? 1 : 0
+      const bfollow = followingSet.has(b._id.toString()) ? 1 : 0
+      return bfollow - afollow
+    })
+
+    res.status(200).json({
+      success: true,
+      data: users
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+
 module.exports ={
   authRouter: router
 }

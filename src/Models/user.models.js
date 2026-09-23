@@ -56,6 +56,12 @@ const userSchema = new mongoose.Schema({
       ref: "user"
     }
   ],
+  savedPosts: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "post"
+    }
+  ],
   displayPicture: {
     type: String,
     default: ""

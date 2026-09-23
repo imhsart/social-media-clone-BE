@@ -36,12 +36,6 @@ const postSchema = new mongoose.Schema({
     //   type: mongoose.Schema.Types.ObjectId,
     //   ref: "comment"
   },
-  saves: [
-    // {
-    //   type: mongoose.Schema.Types.ObjectId,
-    //   ref: "user"
-    // }
-  ],
   hashtags: [
     {
       type: String

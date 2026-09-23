@@ -270,6 +270,133 @@ router.patch("/edit/:postId", isLoggedInUser, async (req, res, next) => {
 })
 
 
+//like - unlike a post api
+router.post("/:postId/like", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { postId } = req.params
+    const userId = req.user._id
+    const targetPost = await Posts.findById(postId)
+    if(!targetPost){
+      throw new AppError("Post not found.", 404)
+    }
+    const alreadyLiked = targetPost.likes.some(id => id.equals(userId))
+
+    const likedPostUpdate = alreadyLiked 
+    ? { $pull: { likes: userId }}
+    : { $addToSet: {likes: userId}}
+    
+    const updated = await Posts.findByIdAndUpdate(
+      postId,
+      likedPostUpdate,
+      { returnDocument: "after" }
+    )
+
+    res.status(200).json({
+      success: true,
+      message: alreadyLiked ? "Post unliked." : "Post liked.",
+      data: updated.likes.length
+    })
+  } 
+  catch(error){
+    next(error)
+  }
+})
+
+
+//get a posts stats api
+router.get("/:postId/stats", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { postId } = req.params
+    const userId = req.user._id
+    const targetPost = await Posts.findById(postId)
+    if(!targetPost){
+      throw new AppError("Post not found.", 404)
+    }
+    const isLikedBySelf = targetPost.likes.some(id => id.equals(userId))
+    const isSavedBySelf = Boolean(await User.exists({ _id: userId, savedPosts: postId }))
+    const isOwnPost = targetPost.authorId.equals(userId)
+    const postStats = {
+      likesCount: targetPost.likes.length,
+      // commentsCount: targetPost.comments.length, uncomment it when comments are added, and the logic will change too because it'll be a separate collection
+      isLikedBySelf,
+      isSavedBySelf,
+      isOwnPost
+    }
+    res.status(200).json({
+      success: true,
+      message: "Retrieved stats.",
+      data: postStats
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+//save - unsave a post api
+router.post("/:postId/save", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { postId } = req.params
+    const userId = req.user._id
+    const targetPost = await Posts.findById(postId)
+    if(!targetPost){
+      throw new AppError("Post not found.", 404)
+    }
+    const isAlreadySaved = Boolean(await User.exists({ _id: userId, savedPosts: postId }))
+    const savedPostUpdate = isAlreadySaved
+    ? { $pull : { savedPosts: postId }}
+    : { $addToSet : { savedPosts: postId }}
+
+    await User.findByIdAndUpdate(
+      userId,
+      savedPostUpdate,
+      { returnDocument: "after" }    
+    )
+
+    res.status(200).json({
+      success: true,
+      message: isAlreadySaved ? "Removed from saved." : "Post saved."
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+//get all users who liked a post api
+router.get("/liked-user/:postId", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { postId } = req.params
+    const page = parseInt(req.query.page) || 1
+    const limit = 30
+    const skip = (page - 1) * limit
+
+    const targetPost = await Posts.findById(postId)
+    .populate("likes", "username firstName lastName displayPicture")
+    .lean()
+
+    if(!targetPost){
+      throw new AppError("Post not found.", 404)
+    }
+    const likedUsers = targetPost.likes.slice(skip, skip + limit)
+
+    res.status(200).json({
+      success: true,
+      message: "Retrieved users",
+      data: likedUsers,
+      hasMore: skip + limit < targetPost.likes.length
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+
+
 
 module.exports = {
   postRouter: router

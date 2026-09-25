@@ -10,6 +10,7 @@ const isLoggedInUser = async (req, res, next) => {
     }
     const verifyJwt = jwt.verify(lg_token, process.env.JWT_SECRET)
     const loggedInUser = await User.findById(verifyJwt.id)
+      .select("-password -followers -following -savedPosts")
     if(!loggedInUser){
       throw new AppError("Please login again.", 401)
     }

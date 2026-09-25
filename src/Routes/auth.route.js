@@ -10,8 +10,18 @@ const AppError = require("../Utils/AppError")
 const bcrypt = require("bcrypt")
 const jwt = require("jsonwebtoken")
 const isLoggedInUser = require("../Middlewares/auth.middleware")
+const { Posts } = require("../Models/post.models")
+const { getPagination, buildPage } = require("../Utils/Pagination")
+const mongoose = require("mongoose")
 
 
+//Validate userId route parameter
+router.param("userId" , (req, res, next, id) => {
+  if(!mongoose.isValidObjectId(id)){
+    return next(new AppError("Invalid user id.", 400))
+  }
+  next()
+})
 
 //send otp api
 router.post("/send-otp" , async (req, res, next) => {
@@ -203,27 +213,118 @@ router.post("/logout", async (req, res, next) => {
   }
 })
 
-//get user data api
+//get user data (self) api
 router.get("/me", isLoggedInUser, async (req, res, next) => {
   try{
+    const { user } = req
+    const [result, postCount] = await Promise.all([
+      User.aggregate([
+        { $match: { _id: user._id }},
+        { $project: {
+            followersCount:  { $size: { $ifNull: ["$followers", []]}},
+            followingCount: { $size: { $ifNull: ["$following", []]}},
+            savedPostsCount: { $size: { $ifNull: ["$savedPosts", []]}}
+        }}
+      ]),
+      Posts.countDocuments({ authorId: user._id})
+    ])
+    
+    const { followersCount = 0, followingCount = 0, savedPostsCount = 0 } = result[0] ?? {}    
+
     return res.status(200).json({
       success: true,
       data: {
-        firstName: req.user.firstName,
-        lastName: req.user.lastName,
-        email: req.user.email,
-        username: req.user.username,
-        DOB: req.user.DOB,
-        gender: req.user.gender,
-        followers: req.user.followers,
-        following: req.user.following,
-        posts: req.user.posts,
-        displayPicture: req.user.displayPicture,
-        bio: req.user.bio,
-        isProfilePublic: req.user.isProfilePublic,
-        isProfileComplete: req.user.isProfileComplete,
-        createdAt: req.user.createdAt
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        username: user.username,
+        DOB: user.DOB,
+        gender: user.gender,
+        followersCount,
+        followingCount,
+        savedPostsCount,
+        postCount,
+        displayPicture: user.displayPicture,
+        bio: user.bio,
+        isProfilePublic: user.isProfilePublic,
+        isProfileComplete: user.isProfileComplete,
+        createdAt: user.createdAt
       }
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+//get user data (not self) api
+router.get("/:userId", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { userId } = req.params
+    const targetId = new mongoose.Types.ObjectId(userId)
+
+    const [result, postCount] = await Promise.all([
+      User.aggregate([
+        { $match: { _id: targetId }},
+        { $project: {
+          username: 1, firstName: 1, lastName: 1,
+          displayPicture: 1, bio: 1, isProfilePublic: 1,
+          followersCount: { $size: "$followers"},
+          followingCount: { $size: "$following"},
+          isFollowedByme: { $in: [req.user._id, { $ifNull: ["$followers", []] }] }        
+        }}
+      ]),
+      Posts.countDocuments({ authorId: targetId})
+    ])
+
+    const profile = result[0]
+    if(!profile){
+      throw new AppError("User not found.", 404)
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { ...profile, postCount }
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+//get all saved posts by user api
+router.get("/saved", isLoggedInUser, async (req, res, next) => {
+  try{
+    const { page, limit, skip } = getPagination(req, 20)
+
+    const [result] = await User.aggregate([
+      { $match: { _id: req.user._id }},
+      {$project: {
+        savedPosts: { $slice: [{ $reverseArray: "$savedPosts" }, skip, limit + 1]}
+      }}
+    ])
+
+    if(!result){
+      throw new AppError("User not found.", 404)
+    }
+    const { items: pageOfIds, hasMore } = buildPage(result.savedPosts || [], limit, page)
+
+    const savedPosts = await Posts.find({ _id: { $in: pageOfIds }})
+      .select("media")
+      .lean()
+    
+    const postMap = new Map(savedPosts.map(p => [p._id.toString(), p]))
+    const orderedPosts = pageOfIds.map(id => postMap.get(id.toString()))
+      .filter(Boolean)
+
+    res.status(200).json({
+      success: true,
+      message: "Showing saved posts.",
+      data: orderedPosts,
+      page,
+      hasMore
     })
   }
   catch(error){
@@ -270,6 +371,86 @@ router.get("/search", isLoggedInUser, async (req, res, next) => {
   }
 })
 
+
+//follow a user api
+router.post("/:userId/follow", isLoggedInUser, async (req, res, next) => {
+  try{
+    const targetId = req.params.userId
+    const myId = req.user._id
+    if(myId.equals(targetId)){
+      throw new AppError("You cannot follow yourself.", 400)
+    }
+    //updating in target user's followers list
+    const follow = await User.updateOne(
+      { _id: targetId, followers: { $ne : myId }},
+      { $addToSet: { followers: myId }}
+    )
+    if(follow.modifiedCount === 0) {
+      const exists = await User.findOne({ _id: targetId})
+      if(!exists){
+        throw new AppError("User not found.", 404)
+      }
+      throw new AppError("Already following.", 409)
+    }
+
+    //updating in logged in user's following list
+    await User.updateOne(
+      { _id: myId, following: { $ne: targetId }},
+      { $addToSet: { following: targetId}}
+    )
+
+    res.status(200).json({
+      success: true,
+      message: "Now following."
+    })
+
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+
+//unfollow a user api
+router.delete("/:userId/unfollow", isLoggedInUser, async (req, res, next) => {
+  try{
+    const targetId = req.params.userId
+    const myId = req.user._id
+    
+    if(myId.equals(targetId)){
+      throw new AppError("You cannot unfollow yourself.", 400)
+    }
+
+    //updating in logged in user's following list
+    const unfollow = await User.updateOne(
+      { _id: targetId, followers: myId },
+      { $pull: { followers: myId }}
+    )
+    if(unfollow.modifiedCount === 0){
+      const exists = await User.exists({ _id: targetId })
+      if(!exists){
+        throw new AppError("User not found.", 404)
+      }
+      throw new AppError("Not following the user.", 409)
+    }
+
+    //updating in logged in user's following list
+    await User.updateOne(
+      { _id: myId },
+      { $pull: { following: targetId }}
+    )
+
+    res.status(200).json({
+      success: true,
+      message: "Unfollowed."
+    })
+  }
+  catch(error){
+    next(error)
+  }
+})
+
+//after making test data, test follow unfollow and think about if to add session transaction thing for atomocity or not
 
 
 module.exports ={

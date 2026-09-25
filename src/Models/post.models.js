@@ -60,6 +60,8 @@ postSchema.path("media").validate(function (media){
   return (hasUrl === hasPublicId) && (hasPublicId === hasResourceType)
 }, "Media must include url, publicId, and resourceType together, or none at all.")
 
+postSchema.index({ authorId: 1, createdAt: -1 })
+
 const Posts = mongoose.model("post", postSchema)
 
 module.exports = {
